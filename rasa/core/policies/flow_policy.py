@@ -194,6 +194,57 @@ class FlowPolicy(Policy):
             else:
                 logger.info("No sensitive topic detected: %s", latest_message.text)
 
+        def handle_multi_intent_message(tracker, flows, multi_intent):
+            executor = FlowExecutor.from_tracker(tracker, flows or FlowsList([]))
+            logger.debug(vars(executor.flow_stack))
+            for intent in multi_intent:
+                logger.debug(intent)
+                for flow in executor.all_flows.underlying_flows:
+                    first_step = flow.first_step_in_flow()
+                    if not first_step or not isinstance(first_step, UserMessageStep):
+                        continue
+
+                    if first_step.is_triggered(intent, []):
+                        logger.debug("IN STACK PUSH")
+                        executor.flow_stack.push(
+                            FlowStackFrame(
+                                flow_id=flow.id,
+                                step_id=START_STEP,
+                                frame_type=StackFrameType.REGULAR,
+                            )
+                        )
+                        break
+            logger.debug(vars(executor.flow_stack))
+            return ActionPrediction(
+                FLOW_PREFIX + executor.flow_stack.top().flow_id, 1.0
+            )
+            # return ActionPrediction(None, 0.0)
+
+        logger.debug("***********************************")
+        logger.debug(vars(flows))
+        predictions = tracker.latest_message.parse_data.get("intent_ranking", [])
+        logger.debug("PREDICTONS")
+        logger.debug(predictions)
+        INTENT_CONFIDENCE_THRESHOLD = 0.2
+        multi_intent = [
+            intent_ranking["name"]
+            for intent_ranking in predictions
+            if intent_ranking["confidence"] > INTENT_CONFIDENCE_THRESHOLD
+        ]
+        logger.debug("LEN")
+        logger.debug(len(multi_intent))
+        if len(multi_intent) >= 2:
+            logger.debug("MULTIPLE INTENT FOUND")
+            prediction = handle_multi_intent_message(tracker, flows, multi_intent)
+
+            return self._create_prediction_result(
+                prediction.action_name,
+                domain,
+                prediction.score,
+                prediction.events,
+                prediction.metadata,
+            )
+
         # if detector predicted an action, we don't want to predict a flow
         if predicted_action is not None:
             return self._create_prediction_result(predicted_action, domain, 1.0, [])
