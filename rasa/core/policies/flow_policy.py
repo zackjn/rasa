@@ -215,9 +215,18 @@ class FlowPolicy(Policy):
                         )
                         break
             logger.debug(vars(executor.flow_stack))
-            return ActionPrediction(
+            prediction = ActionPrediction(
                 FLOW_PREFIX + executor.flow_stack.top().flow_id, 1.0
             )
+            if not prediction.events:
+                prediction.events = []
+            prediction.events.append(
+                SlotSet(
+                    FLOW_STACK_SLOT,
+                    executor.flow_stack.as_dict(),
+                )
+            )
+            return prediction
             # return ActionPrediction(None, 0.0)
 
         logger.debug("***********************************")
@@ -233,7 +242,9 @@ class FlowPolicy(Policy):
         ]
         logger.debug("LEN")
         logger.debug(len(multi_intent))
-        if len(multi_intent) >= 2:
+        if len(multi_intent) >= 2 and self._is_first_prediction_after_user_message(
+            tracker
+        ):
             logger.debug("MULTIPLE INTENT FOUND")
             prediction = handle_multi_intent_message(tracker, flows, multi_intent)
 
