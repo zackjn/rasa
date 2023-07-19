@@ -1,9 +1,10 @@
 name: Nightly Builds
 on:
-  schedule:
-    # Runs every weekday at 1am
-    - cron: 0 1 * * 1-5
-  workflow_dispatch:
+  pull_request:
+#  schedule:
+#    # Runs every weekday at 1am
+#    - cron: 0 1 * * 1-5
+#  workflow_dispatch:
 
 
 jobs:
@@ -45,6 +46,7 @@ jobs:
 
           # Find latest rasa-oss version
           echo "Trying to find the latest rasa-oss version..."
+          pip install toml
           LATEST_RASA_MINOR=$(python scripts/get_version_from_toml.py)
           echo "Current RASA version: ${LATEST_RASA_MINOR}"
 
