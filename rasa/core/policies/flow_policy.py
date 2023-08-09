@@ -424,6 +424,14 @@ class FlowExecutor:
         else:
             structlogger.debug("flow.nostartable")
             return ActionPrediction(None, 0.0)
+    
+    def should_abstain(self, tracker: DialogueStateTracker) -> bool:
+        """
+        Don't make predictions if this is a dummy flow.
+        """
+        if current_flow := self.flow_stack.top_flow(self.all_flows):
+            return current_flow.name.startswith("dummy")
+        return False
 
     def advance_flows(self, tracker: DialogueStateTracker) -> ActionPrediction:
         """Advance the flows.
@@ -437,6 +445,10 @@ class FlowExecutor:
         Returns:
         The predicted action and the events to run.
         """
+        abstain = self.should_abstain(tracker)
+        if abstain:
+            return ActionPrediction(None, 0.0)
+
         prediction = self.consider_flow_switch(tracker)
 
         if prediction.action_name:
