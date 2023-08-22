@@ -6,10 +6,10 @@ from rasa.cdu.conversation_patterns import (
     FLOW_PATTERN_COMPLETED,
     FLOW_PATTERN_CONTINUE_INTERRUPTED,
 )
-from rasa.cdu.flow_stack import (
+from rasa.cdu.dialogue_stack import (
     STACK_FRAME_TYPES_WITH_USER_FLOWS,
-    FlowStack,
-    FlowStackFrame,
+    DialogueStack,
+    DialogueStackFrame,
     StackFrameType,
 )
 
@@ -27,7 +27,7 @@ from rasa.shared.nlu.constants import (
 from rasa.shared.core.constants import (
     ACTION_LISTEN_NAME,
     ACTION_SEND_TEXT_NAME,
-    FLOW_STACK_SLOT,
+    DIALOGUE_STACK_SLOT,
 )
 from rasa.shared.core.events import ActiveLoop, Event, SlotSet
 from rasa.shared.core.flows.flow import (
@@ -233,15 +233,15 @@ class FlowExecutor:
     """Executes a flow."""
 
     def __init__(
-        self, flow_stack: FlowStack, all_flows: FlowsList, domain: Domain
+        self, dialogue_stack: DialogueStack, all_flows: FlowsList, domain: Domain
     ) -> None:
         """Initializes the `FlowExecutor`.
 
         Args:
-            flow_stack_frame: State of the flow.
+            dialogue_stack: State of the flow.
             all_flows: All flows.
         """
-        self.flow_stack = flow_stack
+        self.dialogue_stack = dialogue_stack
         self.all_flows = all_flows
         self.domain = domain
 
@@ -258,8 +258,8 @@ class FlowExecutor:
         Returns:
         The created `FlowExecutor`.
         """
-        flow_stack = FlowStack.from_tracker(tracker)
-        return FlowExecutor(flow_stack, flows or FlowsList([]), domain)
+        dialogue_stack = DialogueStack.from_tracker(tracker)
+        return FlowExecutor(dialogue_stack, flows or FlowsList([]), domain)
 
     def find_startable_flow(self, tracker: DialogueStateTracker) -> Optional[Flow]:
         """Finds a flow which can be started.
@@ -432,19 +432,22 @@ class FlowExecutor:
         if prediction.action_name:
             # if a flow can be started, we'll start it
             return prediction
-        if self.flow_stack.is_empty():
+        if self.dialogue_stack.is_empty():
             # if there are no flows, there is nothing to do
             return ActionPrediction(None, 0.0)
         else:
             prediction = self._select_next_action(tracker)
-            if FlowStack.from_tracker(tracker).as_dict() != self.flow_stack.as_dict():
+            if (
+                DialogueStack.from_tracker(tracker).as_dict()
+                != self.dialogue_stack.as_dict()
+            ):
                 # we need to update the flow stack to persist the state of the executor
                 if not prediction.events:
                     prediction.events = []
                 prediction.events.append(
                     SlotSet(
-                        FLOW_STACK_SLOT,
-                        self.flow_stack.as_dict(),
+                        DIALOGUE_STACK_SLOT,
+                        self.dialogue_stack.as_dict(),
                     )
                 )
             return prediction
@@ -475,14 +478,14 @@ class FlowExecutor:
         number_of_initial_events = len(tracker.events)
 
         while not predicted_action or predicted_action.score == 0.0:
-            if not (current_flow := self.flow_stack.top_flow(self.all_flows)):
+            if not (current_flow := self.dialogue_stack.top_flow(self.all_flows)):
                 # If there is no current flow, we assume that all flows are done
                 # and there is nothing to do. The assumption here is that every
                 # flow ends with an action listen.
                 predicted_action = ActionPrediction(ACTION_LISTEN_NAME, 1.0)
                 break
 
-            if not (previous_step := self.flow_stack.top_flow_step(self.all_flows)):
+            if not (previous_step := self.dialogue_stack.top_flow_step(self.all_flows)):
                 raise FlowException(
                     "The current flow is set, but there is no current step. "
                     "This should not happen, if a flow is started it should be set "
@@ -507,7 +510,7 @@ class FlowExecutor:
             if current_step:
                 # this can't be an else, because the previous if might change
                 # this to "not None"
-                self.flow_stack.advance_top_flow(current_step.id)
+                self.dialogue_stack.advance_top(current_step.id)
 
                 predicted_action = self._run_step(current_flow, current_step, tracker)
                 tracker.update_with_events(predicted_action.events or [], self.domain)
@@ -631,8 +634,8 @@ class FlowExecutor:
             return ActionPrediction(step.action, 1.0)
         elif isinstance(step, LinkFlowStep):
             structlogger.debug("flow.step.run.link", step=step, flow=flow)
-            self.flow_stack.push(
-                FlowStackFrame(
+            self.dialogue_stack.push(
+                DialogueStackFrame(
                     flow_id=step.link,
                     step_id=START_STEP,
                     frame_type=StackFrameType.LINK,
@@ -672,11 +675,11 @@ class FlowExecutor:
             # this is the end of the flow, so we'll pop it from the stack
             events = self._reset_scoped_slots(flow, tracker)
             structlogger.debug("flow.step.run.flow_cleanup", flow=flow)
-            if current_frame := self.flow_stack.pop():
+            if current_frame := self.dialogue_stack.pop():
                 # get stack frame that is below the current one and which will
                 # be continued now that this one has ended.
-                previous_flow = self.flow_stack.top_flow(self.all_flows)
-                previous_stack_frame = self.flow_stack.top()
+                previous_flow = self.dialogue_stack.top_flow(self.all_flows)
+                previous_stack_frame = self.dialogue_stack.top()
                 if (
                     current_frame.frame_type == StackFrameType.INTERRUPT
                     and previous_flow
@@ -685,8 +688,8 @@ class FlowExecutor:
                     and previous_stack_frame.frame_type
                     in STACK_FRAME_TYPES_WITH_USER_FLOWS
                 ):
-                    self.flow_stack.push(
-                        FlowStackFrame(
+                    self.dialogue_stack.push(
+                        DialogueStackFrame(
                             flow_id=FLOW_PATTERN_CONTINUE_INTERRUPTED,
                             step_id=START_STEP,
                             frame_type=StackFrameType.REMARK,
@@ -703,8 +706,8 @@ class FlowExecutor:
                     completed_flow_name = (
                         completed_flow.readable_name() if completed_flow else None
                     )
-                    self.flow_stack.push(
-                        FlowStackFrame(
+                    self.dialogue_stack.push(
+                        DialogueStackFrame(
                             flow_id=FLOW_PATTERN_COMPLETED,
                             step_id=START_STEP,
                             frame_type=StackFrameType.REMARK,

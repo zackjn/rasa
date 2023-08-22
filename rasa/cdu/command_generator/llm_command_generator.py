@@ -17,7 +17,7 @@ from rasa.cdu.commands import (
     ClarifyCommand,
 )
 
-from rasa.core.policies.flow_policy import FlowStack
+from rasa.core.policies.flow_policy import DialogueStack
 from rasa.engine.graph import GraphComponent, ExecutionContext
 from rasa.engine.recipes.default_recipe import DefaultV1Recipe
 from rasa.engine.storage.resource import Resource
@@ -282,10 +282,12 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
         flows_without_patterns = FlowsList(
             [f for f in flows.underlying_flows if not f.is_handling_pattern()]
         )
-        flow_stack = FlowStack.from_tracker(tracker)
-        top_flow = flow_stack.top_flow(flows) if flow_stack is not None else None
+        dialogue_stack = DialogueStack.from_tracker(tracker)
+        top_flow = (
+            dialogue_stack.top_flow(flows) if dialogue_stack is not None else None
+        )
         current_step = (
-            flow_stack.top_flow_step(flows) if flow_stack is not None else None
+            dialogue_stack.top_flow_step(flows) if dialogue_stack is not None else None
         )
         if top_flow is not None:
             flow_slots = [

@@ -3,13 +3,13 @@ from typing import Any, Dict, Optional, Text, List
 import structlog
 from rasa.core.actions import action
 from rasa.core.channels import OutputChannel
-from rasa.cdu.flow_stack import FlowStack, FlowStackFrame, StackFrameType
+from rasa.cdu.dialogue_stack import DialogueStack, DialogueStackFrame, StackFrameType
 from rasa.shared.constants import FLOW_PREFIX
 
 from rasa.shared.core.constants import (
     ACTION_CANCEL_FLOW,
     ACTION_CORRECT_FLOW_SLOT,
-    FLOW_STACK_SLOT,
+    DIALOGUE_STACK_SLOT,
     ACTION_CLARIFY_FLOWS,
 )
 from rasa.shared.core.domain import Domain
@@ -51,7 +51,7 @@ class FlowTriggerAction(action.Action):
         metadata: Optional[Dict[Text, Any]] = None,
     ) -> List[Event]:
         """Trigger the flow."""
-        stack = FlowStack.from_tracker(tracker)
+        stack = DialogueStack.from_tracker(tracker)
         if self._flow_name == "pattern_continue_interrupted":
             frame_type = StackFrameType.REMARK
         elif self._flow_name == "pattern_completed":
@@ -62,7 +62,7 @@ class FlowTriggerAction(action.Action):
             frame_type = StackFrameType.REGULAR
 
         stack.push(
-            FlowStackFrame(
+            DialogueStackFrame(
                 flow_id=self._flow_name,
                 frame_type=frame_type,
             )
@@ -74,7 +74,7 @@ class FlowTriggerAction(action.Action):
         ]
 
         events: List[Event] = [
-            SlotSet(FLOW_STACK_SLOT, stack.as_dict())
+            SlotSet(DIALOGUE_STACK_SLOT, stack.as_dict())
         ] + slot_set_events
         if tracker.active_loop_name:
             events.append(ActiveLoop(None))
@@ -102,7 +102,7 @@ class ActionCancelFlow(action.Action):
         metadata: Optional[Dict[Text, Any]] = None,
     ) -> List[Event]:
         """Cancel the flow."""
-        stack = FlowStack.from_tracker(tracker)
+        stack = DialogueStack.from_tracker(tracker)
         if stack.is_empty():
             structlogger.warning("action.cancel_flow.no_active_flow", stack=stack)
             return []
@@ -124,7 +124,7 @@ class ActionCancelFlow(action.Action):
                     frame_id=canceled_frame_id,
                 )
 
-        return [SlotSet(FLOW_STACK_SLOT, stack.as_dict())]
+        return [SlotSet(DIALOGUE_STACK_SLOT, stack.as_dict())]
 
 
 class ActionCorrectFlowSlot(action.Action):
@@ -147,7 +147,7 @@ class ActionCorrectFlowSlot(action.Action):
         metadata: Optional[Dict[Text, Any]] = None,
     ) -> List[Event]:
         """Correct the slots."""
-        stack = FlowStack.from_tracker(tracker)
+        stack = DialogueStack.from_tracker(tracker)
         if stack.is_empty():
             structlogger.warning("action.correct_flow_slot.no_active_flow", stack=stack)
             return []
@@ -160,7 +160,7 @@ class ActionCorrectFlowSlot(action.Action):
             if frame.flow_id == reset_point.get("id"):
                 frame.step_id = reset_point.get("step_id") or START_STEP
                 break
-        events: List[Event] = [SlotSet(FLOW_STACK_SLOT, stack.as_dict())]
+        events: List[Event] = [SlotSet(DIALOGUE_STACK_SLOT, stack.as_dict())]
 
         events.extend([SlotSet(k, v) for k, v in corrected_slots.items()])
 
@@ -196,7 +196,7 @@ class ActionClarifyFlows(action.Action):
         metadata: Optional[Dict[Text, Any]] = None,
     ) -> List[Event]:
         """Correct the slots."""
-        stack = FlowStack.from_tracker(tracker)
+        stack = DialogueStack.from_tracker(tracker)
         if stack.is_empty():
             structlogger.warning("action.clarify_flows.no_active_flow", stack=stack)
             return []
@@ -214,4 +214,4 @@ class ActionClarifyFlows(action.Action):
         names = context.get("names", [])
         options_string = self.assemble_options_string(names)
         context["clarification_options"] = options_string
-        return [SlotSet(FLOW_STACK_SLOT, stack.as_dict())]
+        return [SlotSet(DIALOGUE_STACK_SLOT, stack.as_dict())]
