@@ -430,7 +430,7 @@ class FlowExecutor:
         Don't make predictions if this is a dummy flow.
         """
         if current_flow := self.flow_stack.top_flow(self.all_flows):
-            return current_flow.name.startswith("dummy")
+            return current_flow.id.startswith("dummy")
         return False
 
     def advance_flows(self, tracker: DialogueStateTracker) -> ActionPrediction:
