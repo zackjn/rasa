@@ -513,6 +513,7 @@ class TrainingDataGenerator:
                     logger.debug(
                         "Found {} unused checkpoints".format(len(previous_unused))
                     )
+                    logger.debug(", ".join(unused_checkpoints))
                     phase = 0
                 else:
                     logger.debug(
@@ -520,6 +521,7 @@ class TrainingDataGenerator:
                         "in current phase."
                         "".format(len(unused_checkpoints))
                     )
+                    logger.debug(", ".join(unused_checkpoints))
                     logger.debug(
                         "Found {} active trackers "
                         "for these checkpoints."
