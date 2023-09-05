@@ -669,8 +669,8 @@ class StoryGraph:
         """Topological sort of the steps returning the ids of the steps."""
         checkpoints = StoryGraph._group_by_start_checkpoint(story_steps)
         graph = {
-            s.block_name: {
-                other.block_name
+            f"{s.id}_{s.block_name}": {
+                f"{other.id}_{other.block_name}"
                 for end in s.end_checkpoints
                 for other in checkpoints[end.name]
             }
