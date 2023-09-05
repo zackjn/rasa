@@ -283,6 +283,7 @@ class TrainingDataGenerator:
         connect complete stories. Afterwards, duplicate stories will be
         removed and the data is augmented (if augmentation is enabled).
         """
+        logger.debug(story_graph.cyclic_edge_ids)
         self.story_graph = story_graph.with_cycles_removed()
         if debug_plots:
             self.story_graph.visualize("story_blocks_connections.html")
