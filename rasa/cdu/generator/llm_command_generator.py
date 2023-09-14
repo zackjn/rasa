@@ -145,7 +145,9 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
         if tracker is None or flows.is_empty():
             # cannot do anything if there are no flows or no tracker
             return []
-        flow_prompt = self.render_template(message, tracker, flows)
+        flow_prompt = self.render_template(
+            self.prompt_template, message, tracker, flows
+        )
         structlogger.info(
             "llm_command_generator.predict_commands.prompt_rendered", prompt=flow_prompt
         )
@@ -154,6 +156,8 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
             "llm_command_generator.predict_commands.actions_generated",
             action_list=action_list,
         )
+        message.set("raw_commands", action_list, add_to_output=True)
+        message.set("raw_prompt", flow_prompt, add_to_output=True)
         commands = self.parse_commands(action_list, tracker)
         structlogger.info(
             "llm_command_generator.predict_commands.finished",
@@ -316,7 +320,8 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
             )
         )
 
-    def allowed_values_for_slot(self, slot: Slot) -> Optional[str]:
+    @staticmethod
+    def allowed_values_for_slot(slot: Slot) -> Optional[str]:
         """Get the allowed values for a slot."""
         if isinstance(slot, BooleanSlot):
             return str([True, False])
@@ -334,8 +339,13 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
         else:
             return str(slot_value)
 
+    @classmethod
     def render_template(
-        self, message: Message, tracker: DialogueStateTracker, flows: FlowsList
+        cls,
+        prompt_template: str,
+        message: Message,
+        tracker: DialogueStateTracker,
+        flows: FlowsList,
     ) -> str:
         flows_without_patterns = FlowsList(
             [f for f in flows.underlying_flows if not f.is_handling_pattern()]
@@ -347,15 +357,15 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
             flow_slots = [
                 {
                     "name": q.collect_information,
-                    "value": self.slot_value(tracker, q.collect_information),
+                    "value": cls.slot_value(tracker, q.collect_information),
                     "type": tracker.slots[q.collect_information].type_name,
-                    "allowed_values": self.allowed_values_for_slot(
+                    "allowed_values": cls.allowed_values_for_slot(
                         tracker.slots[q.collect_information]
                     ),
                     "description": q.description,
                 }
                 for q in top_flow.get_collect_information_steps()
-                if self.is_extractable(q, tracker, current_step)
+                if cls.is_extractable(q, tracker, current_step)
             ]
         else:
             flow_slots = []
@@ -370,7 +380,7 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
         current_conversation += f"\nUSER: {latest_user_message}"
 
         inputs = {
-            "available_flows": self.create_template_inputs(
+            "available_flows": cls.create_template_inputs(
                 flows_without_patterns, tracker
             ),
             "current_conversation": current_conversation,
@@ -381,4 +391,4 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
             "user_message": latest_user_message,
         }
 
-        return Template(self.prompt_template).render(**inputs)
+        return Template(prompt_template).render(**inputs)
