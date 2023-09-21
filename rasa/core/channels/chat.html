@@ -95,7 +95,6 @@
           <thead>
             <tr>
               <th>ID</th>
-              <th>Type</th>
               <th>Flow</th>
               <th>Step Id</th>
             </tr>
@@ -288,13 +287,13 @@
         if (!stackFrames.length) {
           stackEl.insertAdjacentHTML(
             "afterbegin",
-            `<tr><td colspan=4 class="empty-row">-</td></tr>`
+            `<tr><td colspan=3 class="empty-row">-</td></tr>`
           );
         } else {
           stackFrames.forEach((frame, i) => {
             stackEl.insertAdjacentHTML(
               "afterbegin",
-              `<tr><td class="tiny">${frame.frame_id}</td><td>${frame.frame_type}</td><td>${
+              `<tr><td class="tiny">${frame.frame_id}</td><td>${
                 frame.flow_id
               }</td><td>${frame.step_id}</td></tr>`
             );
@@ -317,7 +316,7 @@
 
       function firstNonPatternFrame(stackFrames) {
         let frameIndex = stackFrames.length - 1;
-        while (frameIndex >= 0 && stackFrames[frameIndex]?.flow_id.startsWith("pattern_")) {
+        while (frameIndex >= 0 && stackFrames[frameIndex]?.flow_id?.startsWith("pattern_")) {
           frameIndex--;
         }
         return frameIndex;
@@ -330,7 +329,7 @@
         let frameIndex = excludePatterns ? firstNonPatternFrame(stackFrames) : stackFrames.length - 1;
         let activeFlow = stackFrames[frameIndex]?.flow_id;
         let activeStep = stackFrames[frameIndex]?.step_id;
-        let currentContext = stackFrames[frameIndex]?.context;
+        let currentContext = stackFrames[frameIndex];
         let flows = await flowsData;
         // find flow by going through array and checking for the id field
         let flow = flows.find((flow) => flow.id === activeFlow);
@@ -351,10 +350,10 @@ classDef active stroke:#5A17ED,stroke-width:3px,stroke-dasharray: 5 3
               var slotValue = slots[step.collect_information]
                 ? `'${slots[step.collect_information]}'`
                 : "\uD83D\uDCAC";
-              mermaidText += `${step.id}["${toHtmlEntities(inject(keepShort(step.collect_information), currentContext))}\n${keepShort(slotValue)}"]:::collect_information\n`;
+              mermaidText += `${step.id}["${toHtmlEntities(keepShort(inject(step.collect_information, currentContext)))}\n${keepShort(slotValue)}"]:::collect_information\n`;
             }
             if (step.action) {
-              mermaidText += `${step.id}["${toHtmlEntities(inject(keepShort(step.action), currentContext))}"]:::action\n`;
+              mermaidText += `${step.id}["${toHtmlEntities(keepShort(inject(step.action, currentContext)))}"]:::action\n`;
             }
             if (step.link) {
               mermaidText += `${step.id}["\uD83D\uDD17 ${step.link}"]:::link\n`;
