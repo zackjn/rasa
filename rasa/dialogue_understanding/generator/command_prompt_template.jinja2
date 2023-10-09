@@ -8,7 +8,17 @@ These are the flows that can be started, with their description and slots:
     {% endfor %}
 {%- endfor %}
 
+Based on this information generate a list of actions you want to take. Your job is to start flows and to fill slots where appropriate. Any logic of what happens afterwards is handled by the flow engine. These are your available actions:
+* Slot setting, described by "SetSlot(slot_name, slot_value)". Do not fill slots with abstract values or placeholders. Only use information provided by the user. An example would be "SetSlot(recipient, Freddy)". The user could also ask to change the value of the slot without specifying a value. In that case you can set the value to "None".
+* Starting another flow, described by "StartFlow(flow_name)". Only start a flow if it's completely clear what the user wants. Imagine you were a person reading this message. If it's not 100% clear, clarify the next step. An example would be "StartFlow(transfer_money)"
+* Cancelling the current flow, described by "CancelFlow()"
+* Clarifying which flow should be started. If the user asks for two things which seem contradictory, clarify before starting a flow. An example would be Clarify(list_contacts, add_contact, remove_contact) if the user just wrote "contacts" and there are multiple potential candidates. It also works with a single flow name to confirm you understood correctly, as in Clarify(transfer_money).
+* Responding to knowledge-oriented user messages, described by "SearchAndReply()"
+* Responding to a casual, non-task-oriented user message, described by "ChitChat()".
+* Handing off to a human, in case the user seems frustrated or explicitly asks to speak to one, described by "HumanHandoff()".
+
 ===
+
 Here is what happened previously in the conversation:
 {{ current_conversation }}
 
@@ -32,24 +42,11 @@ If you start a flow, first start the flow and then optionally fill that flow's s
 The user just said """{{ user_message }}""".
 
 ===
-Based on this information generate a list of actions you want to take. Your job is to start flows and to fill slots where appropriate. Any logic of what happens afterwards is handled by the flow engine. These are your available actions:
-* Slot setting, described by "SetSlot(slot_name, slot_value)". An example would be "SetSlot(recipient, Freddy)"
-* Starting another flow, described by "StartFlow(flow_name)". An example would be "StartFlow(transfer_money)"
-* Cancelling the current flow, described by "CancelFlow()"
-* Clarifying which flow should be started. An example would be Clarify(list_contacts, add_contact, remove_contact) if the user just wrote "contacts" and there are multiple potential candidates. It also works with a single flow name to confirm you understood correctly, as in Clarify(transfer_money).
-* Responding to knowledge-oriented user messages, described by "SearchAndReply()"
-* Responding to a casual, non-task-oriented user message, described by "ChitChat()".
-* Handing off to a human, in case the user seems frustrated or explicitly asks to speak to one, described by "HumanHandoff()".
-
-===
 Write out the actions you want to take, one per line, in the order they should take place.
-Do not fill slots with abstract values or placeholders.
-Only use information provided by the user.
-Only start a flow if it's completely clear what the user wants. Imagine you were a person reading this message. If it's not 100% clear, clarify the next step.
 Don't be overly confident. Take a conservative approach and clarify before proceeding.
-If the user asks for two things which seem contradictory, clarify before starting a flow.
 Strictly adhere to the provided action types listed above.
 Focus on the last message and take it one step at a time.
-Use the previous conversation steps only to aid understanding.
+Use the previous conversation steps only if strictly necessary to aid understanding.
+===
 
 Your action list:
