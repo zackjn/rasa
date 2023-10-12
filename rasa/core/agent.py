@@ -38,19 +38,7 @@ logger = logging.getLogger(__name__)
 
 async def load_from_server(agent: Agent, model_server: EndpointConfig) -> Agent:
     """Load a persisted model from a server."""
-    # We are going to pull the model once first, and then schedule a recurring
-    # job. the benefit of this approach is that we can be sure that there
-    # is a model after this function completes -> allows to do proper
-    # "is alive" check on a startup server's `/status` endpoint. If the server
-    # is started, we can be sure that it also already loaded (or tried to)
-    # a model.
     await _update_model_from_server(model_server, agent)
-
-    wait_time_between_pulls = model_server.kwargs.get("wait_time_between_pulls", 100)
-
-    if wait_time_between_pulls:
-        # continuously pull the model every `wait_time_between_pulls` seconds
-        await _schedule_model_pulling(model_server, int(wait_time_between_pulls), agent)
 
     return agent
 
@@ -83,7 +71,9 @@ async def _update_model_from_server(model_server: EndpointConfig, agent: Agent) 
             )
 
             if new_fingerprint:
-                _load_and_set_updated_model(agent, temporary_directory, new_fingerprint)
+                    logger.debug(f"Found new model with fingerprint {fingerprint}. Loading...")
+                    agent.load_model(temporary_directory, new_fingerprint)
+                    logger.debug("Finished updating agent to new model.")
             else:
                 logger.debug(f"No new model found at URL {model_server.url}")
         except Exception:  # skipcq: PYL-W0703
@@ -171,20 +161,6 @@ async def _run_model_pulling_worker(model_server: EndpointConfig, agent: Agent) 
         logger.exception(
             "An exception was raised while fetching a model. Continuing anyways..."
         )
-
-
-async def _schedule_model_pulling(
-    model_server: EndpointConfig, wait_time_between_pulls: int, agent: Agent
-) -> None:
-    (await jobs.scheduler()).add_job(
-        _run_model_pulling_worker,
-        "interval",
-        seconds=wait_time_between_pulls,
-        args=[model_server, agent],
-        id="pull-model-from-server",
-        replace_existing=True,
-    )
-
 
 async def load_agent(
     model_path: Optional[Text] = None,
