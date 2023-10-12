@@ -2,9 +2,12 @@ import importlib.resources
 import re
 import time
 from typing import Dict, Any, Optional, List, Union
+from uuid import UUID
 
 from jinja2 import Template
 import structlog
+from langchain.callbacks.base import BaseCallbackHandler
+from langchain.schema import LLMResult, AgentFinish
 
 from rasa.dialogue_understanding.stack.utils import top_flow_frame
 from rasa.dialogue_understanding.generator import CommandGenerator
@@ -61,6 +64,59 @@ DEFAULT_LLM_CONFIG = {
 }
 
 LLM_CONFIG_KEY = "llm"
+
+
+class LLMCallbackHandler(BaseCallbackHandler):
+    """Callback Handler that writes to a file."""
+
+    def __init__(self) -> None:
+        """Initialize callback handler."""
+        self.start = 0
+        self.file_name = "output.log"
+
+    def on_llm_start(
+        self,
+        serialized: Dict[str, Any],
+        prompts: List[str],
+        *,
+        run_id: UUID,
+        parent_run_id: Optional[UUID] = None,
+        tags: Optional[List[str]] = None,
+        **kwargs: Any,
+    ) -> Any:
+        self.start = time.time()
+
+    async def on_llm_end(
+        self,
+        response: LLMResult,
+        *,
+        run_id: UUID,
+        parent_run_id: Optional[UUID] = None,
+        **kwargs: Any,
+    ) -> Any:
+        end = time.time()
+
+        async def _write_data():
+            data = (
+                f"rasa.llm_callback_handler.response: {response.llm_output['JSON']}"
+                f"rasa.llm_callback_handler.inference_time: {end - self.start}"
+            )
+
+            try:
+                # Open the file in append mode ('a')
+                file = open(self.file_name, "a")
+            except FileNotFoundError:
+                # If file doesn't exist, create it
+                file = open(self.file_name, "w")
+
+            # Append the given string to the file
+            file.write(data)
+            file.write("\n")
+
+            # Close the file
+            file.close()
+
+        await _write_data()
 
 
 @DefaultV1Recipe.register(
@@ -131,27 +187,23 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
         """
         llm = llm_factory(self.config.get(LLM_CONFIG_KEY), DEFAULT_LLM_CONFIG)
 
-        result = None
-        duration = 0
         try:
             start = time.time()
-            result = llm(prompt)
+            llm_result = llm.generate([prompt])
             end = time.time()
-            duration = end - start
+
+            structlogger.info(
+                "rasa.llm_api_call.llm_output", llm_output=llm_result.llm_output
+            )
+            structlogger.info("rasa.llm_api_call.duration", duration=end - start)
+
+            return llm_result.generations[0][0].text
         except Exception as e:
             # unfortunately, langchain does not wrap LLM exceptions which means
             # we have to catch all exceptions here
             structlogger.error("llm_command_generator.llm.error", error=e)
 
-        structlogger.info(
-            "llm_command_generator.predict_commands.inference_time_api_call",
-            duration=duration,
-        )
-        structlogger.info(
-            "llm_command_generator.predict_commands.prompt_length",
-            prompt_length=len(prompt),
-        )
-        return result
+        return None
 
     def predict_commands(
         self,
