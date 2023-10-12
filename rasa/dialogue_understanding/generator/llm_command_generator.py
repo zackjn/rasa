@@ -1,9 +1,11 @@
 import importlib.resources
 import re
+import time
 from typing import Dict, Any, Optional, List, Union
 
 from jinja2 import Template
 import structlog
+
 from rasa.dialogue_understanding.stack.utils import top_flow_frame
 from rasa.dialogue_understanding.generator import CommandGenerator
 from rasa.dialogue_understanding.commands import (
@@ -129,13 +131,27 @@ class LLMCommandGenerator(GraphComponent, CommandGenerator):
         """
         llm = llm_factory(self.config.get(LLM_CONFIG_KEY), DEFAULT_LLM_CONFIG)
 
+        result = None
+        duration = 0
         try:
-            return llm(prompt)
+            start = time.time()
+            result = llm(prompt)
+            end = time.time()
+            duration = end - start
         except Exception as e:
             # unfortunately, langchain does not wrap LLM exceptions which means
             # we have to catch all exceptions here
             structlogger.error("llm_command_generator.llm.error", error=e)
-            return None
+
+        structlogger.info(
+            "llm_command_generator.predict_commands.inference_time_api_call",
+            duration=duration,
+        )
+        structlogger.info(
+            "llm_command_generator.predict_commands.prompt_length",
+            prompt_length=len(prompt),
+        )
+        return result
 
     def predict_commands(
         self,
